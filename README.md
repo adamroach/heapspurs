@@ -85,7 +85,7 @@ In most cases, you're looking for unexpected objects and trying to figure out wh
 
 * A global variable in the Data Segment
 
-The first thing you'll need to do is get the address of an object that you think should be deallocated but isn't. There are several ways you might discover this (e.g., from your debugger or from the `--search` flag described below), but the simplest my be simply printing it out:
+The first thing you'll need to do is get the address of an object that you think should be deallocated but isn't. There are several ways you might discover this (e.g., from your debugger or from the `--search` flag described below), but the simplest may be simply printing it out:
 
 ```go
 fmt.Printf("%T address: 0x%x\n", object, unsafe.Pointer(object))
@@ -98,7 +98,7 @@ Once you have the address of the object of interest, you can ask for information
 BssSegment @ 0x100642fe0-0x100677460 with 10815 pointers
 ```
 
-This tells us that the object at `0xc000019680` is ultimate rooted in the BSS segment, meaning that there is a series of pointers from the BSS (global variables) that ultimately lead to our object. (In many cases, the anchor list will also include one or more stack frames that transitively point to the object in question).
+This tells us that the object at `0xc000019680` is ultimately rooted in the BSS segment, meaning that there is a series of pointers from the BSS (global variables) that ultimately lead to our object. (In many cases, the anchor list will also include one or more stack frames that transitively point to the object in question).
 
 You can also ask about the object's direct owners by providing a `--owners 1` flag (the "1" indicates that you only want to see the things directly pointing to the object):
 
@@ -179,11 +179,11 @@ Pointer: 0x168
 Pointer: 0x170
 ```
 
-The output is a raw hexdump of the object's value,  followed by a list of the locations inside that object that are known to be pointer (e.g, `Pointer:0x30` indicates that the bytes at that position in the object -- `00 00 48 00 c0 00 00 00` -- are a pointer, in the length and byte order of the architecture that generated the dump; in this case, `0xc000480000`)
+The output is a raw hexdump of the object's value,  followed by a list of the locations inside that object that are known to be pointers (e.g, `Pointer:0x30` indicates that the bytes at that position in the object -- `00 00 48 00 c0 00 00 00` -- are a pointer, in the length and byte order of the architecture that generated the dump; in this case, `0xc000480000`)
 
 ## Instrumenting Names
 
-Unfortunately, the heapdump file produce by go does not contain any typing information, which is why everything is presented only as its record type names. There are a couple of ways heapspurs can pull in additional information about your application to help give some hints.
+Unfortunately, the heapdump file produced by go does not contain any typing information, which is why everything is presented only as its record type names. There are a couple of ways heapspurs can pull in additional information about your application to help give some hints.
 
 ### BSS and Data Segment Pointers
 
@@ -207,7 +207,7 @@ When graphed, this will include a label on references from the BssSegment and Da
 
 ![](images/2023-02-23-18-02-09-image.png)
 
-In this example, the BSS symbol `runtime.allm` is pointing to the object that is keeping our object alive. This isn't actually all that interesting, since that's where Go stores all of the OS threads that are available to do things (it's "all the m's" as that term is explained at [https://go.dev/src/runtime/HACKING](https://go.dev/src/runtime/HACKING)). But since we know what that *is* (see its definition in [runtime/runtime2.go](https://go.dev/src/runtime/runtime2.go)), we can try to figure things our ourselves.
+In this example, the BSS symbol `runtime.allm` is pointing to the object that is keeping our object alive. This isn't actually all that interesting, since that's where Go stores all of the OS threads that are available to do things (it's "all the m's" as that term is explained at [https://go.dev/src/runtime/HACKING](https://go.dev/src/runtime/HACKING)). But since we know what that *is* (see its definition in [runtime/runtime2.go](https://go.dev/src/runtime/runtime2.go)), we can try to figure things out ourselves.
 
 ```
 ./heapspurs heapdump --program ./heapspurs --print
@@ -261,7 +261,7 @@ type webrtcSource struct {
 }
 
 sourceImpl := &webrtcSource{
-	Oid: ingest.ObjectId_pionwebrtcsource_webrtcSource, // 0xcaffe14e00000016
+    Oid: ingest.ObjectId_pionwebrtcsource_webrtcSource, // 0xcaffe14e00000016
 ...
 }
 ```
@@ -345,6 +345,8 @@ End Of File
 
 # Future Functionality / Patches Welcome
 
-There's definitely a lot more that could be added to this tool to make it more useful. One that I haven't had time to pursue, but which would be very useful, would be recovery of object layout information from the executable itself. There's a fairly good description of how one might start going about this in the post "[Analyzing Golang Executables  -- JEB in Action](https://www.pnfsoftware.com/blog/analyzing-golang-executables/#title_types)". Once this information is extracted, we could parse out the types of the pointers in known objects, and then recursively follow them -- basically, automating the process described above using counter pointing.
+There's definitely a lot more that could be added to this tool to make it more useful. One approach that I haven't had time to pursue, but which would be very useful, would be recovery of object layout information from the executable itself. There's a fairly good description of how one might start going about this in the post "[Analyzing Golang Executables  -- JEB in Action](https://www.pnfsoftware.com/blog/analyzing-golang-executables/#title_types)". Once this information is extracted, we could parse out the types of the pointers in known objects, and then recursively follow them -- basically, automating the process described above using pointer counting.
 
 With object layout information, we could then find objects that have a unique combination of {size, pointer positions}, and assume that any objects in the heap that match those patterns are necessarily those kinds of objects, which gives us a starting point to begin our object traversal. This could be used instead of an OID file, or supplemented by it.
+
+It may also be possible to pull in additional information from `pprof` output as well to assist in object identification. I have not yet done much research in this direction.
