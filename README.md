@@ -343,6 +343,21 @@ pionwebrtcsource.WebrtcSourceService @ 0xc0001f3140 with 3 pointers in 64 bytes
 End Of File
 ```
 
+## Leaked Cycles: Finalizers
+
+Sometimes you'll find memory that hasn't been collected even though it doesn't trace back to a stack frame or global segment:
+
+```
+# ./heapspurs heapdump --oid oid.txt --address 0xc0002116c0 --anchors
+#
+```
+
+As far as I know, the only way this situation can arise is when you have a cycle of objects, one (or more) of which has a finalizer set on it. To help diagnose these situations, heapspurs will highlight any objects that have finalizers with a thick, red border:
+
+![](images/2023-02-27-16-10-48-image.png)
+
+In this example, the pointer from the red object at the bottom of the graph back to the `cmafsink.cmafSink` object will prevent everything in this graph from being cleaned up (as well as any objects that any of these objects point to, transitively)
+
 # Future Functionality / Patches Welcome
 
 There's definitely a lot more that could be added to this tool to make it more useful. One approach that I haven't had time to pursue, but which would be very useful, would be recovery of object layout information from the executable itself. There's a fairly good description of how one might start going about this in the post "[Analyzing Golang Executables  -- JEB in Action](https://www.pnfsoftware.com/blog/analyzing-golang-executables/#title_types)". Once this information is extracted, we could parse out the types of the pointers in known objects, and then recursively follow them -- basically, automating the process described above using pointer counting.
@@ -353,4 +368,4 @@ This approach is complicated by the fact that the `moduledata` structure both ca
 
 It may be possible to pull in additional information from `pprof` output as well to assist in object identification. I have not yet done much research in this direction.
 
-On a separate note: currently, when creating the graph, there is no attempt to remove cycles of objects that point to the object in question but which do not lie on any path to an anchor that doesn't first pass through the object itself. These cycles of objects aren't interesting in tracking down leaks, since they aren't responsible for keeping the object from being collected. It would be nice to have an option that removes these extraneous objects.
+On a separate note: currently, when creating the graph, there is no attempt to remove cycles of objects that point to the object in question but which do not lie on any path to an anchor that doesn't first pass through the object itself. These cycles of objects aren't interesting in tracking down leaks, since they aren't responsible for keeping the object from being collected. It would be nice to have an option that removes these extraneous objects. This analysis could also be used to identify and highlight cycles of objects with finalizers set on one of the objects in a cycle.
