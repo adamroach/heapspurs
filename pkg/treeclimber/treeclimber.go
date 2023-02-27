@@ -13,10 +13,11 @@ import (
 )
 
 type TreeClimber struct {
-	params  *heapdump.DumpParams
-	memory  map[uint64]heapdump.Record   // Map of all records that represet an in-memory construct
-	owners  map[uint64][]heapdump.Record // Maps from pointed-to objects to the thing(s) pointing to them
-	visited map[uint64]bool              // Temporary state used to keep track of already-visited nodes during graph traversal
+	params     *heapdump.DumpParams
+	memory     map[uint64]heapdump.Record   // Map of all records that represet an in-memory construct
+	owners     map[uint64][]heapdump.Record // Maps from pointed-to objects to the thing(s) pointing to them
+	visited    map[uint64]bool              // Temporary state used to keep track of already-visited nodes during graph traversal
+	finalizers map[uint64]heapdump.Record   // Map of object address to its finalizer (if any)
 }
 
 func NewTreeClimber(reader *bufio.Reader) (*TreeClimber, error) {
@@ -128,6 +129,8 @@ func (c *TreeClimber) addNode(graph *cgraph.Graph, address uint64, spotlight boo
 	}
 	c.visited[address] = true
 
+	finalizer, _ := c.finalizers[address]
+
 	node, _ := graph.CreateNode(fmt.Sprintf("0x%x", address))
 	switch r := record.(type) {
 	case *heapdump.Object:
@@ -135,7 +138,13 @@ func (c *TreeClimber) addNode(graph *cgraph.Graph, address uint64, spotlight boo
 		if name != "Object" {
 			node.SetFontColor("#008000")
 		}
-		node.SetLabel(fmt.Sprintf("%s (%s)\n0x%x", name, unitize(uint64(len(r.Contents))), address))
+		label := fmt.Sprintf("%s (%s)\n0x%x", name, unitize(uint64(len(r.Contents))), address)
+		if finalizer != nil {
+			label += fmt.Sprintf("\n%T", finalizer)
+			node.SetColor("red")
+			node.SetPenWidth(5)
+		}
+		node.SetLabel(label)
 		node.SetShape(cgraph.EllipseShape)
 
 		// Objects generally have owners; track them down and graph them.
@@ -296,6 +305,7 @@ func (c *TreeClimber) build(reader *bufio.Reader) error {
 
 	c.memory = make(map[uint64]heapdump.Record)
 	c.owners = make(map[uint64][]heapdump.Record)
+	c.finalizers = make(map[uint64]heapdump.Record)
 
 readloop:
 	for {
@@ -309,6 +319,10 @@ readloop:
 			break readloop
 		case *heapdump.DumpParams:
 			c.params = r
+		case *heapdump.QueuedFinalizer:
+			c.finalizers[r.ObjectAddress] = r
+		case *heapdump.RegisteredFinalizer:
+			c.finalizers[r.ObjectAddress] = r
 		}
 
 		a, isAddressable := record.(heapdump.Addressable)
