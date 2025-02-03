@@ -2,7 +2,7 @@
 
 Tracking down memory leaks in Go applications can be a relatively tricky prospect. The first pass at tracking down issues involves the use of [pprof](https://github.com/google/pprof), which can be very helpful in determining which object types are consuming memory, and which stack frame initially allocated those objects. There are [literally hundreds of blog posts](https://www.google.com/search?q=pprof+memory+leaks) that cover how to use it to kind of triangulate where in your program a memory leak may be occurring.
 
-For more complex memory leak situations, these approaches require a fair degree of inference about why any given object isn't being released by the garbage collector, as well as a compete knowledge of how your entire application -- including any imported packages -- may be keeping track of objects. 
+For more complex memory leak situations, these approaches require a fair degree of inference about why any given object isn't being released by the garbage collector, as well as a complete knowledge of how your entire application -- including any imported packages -- may be keeping track of objects. 
 
 Luckily, the go runtime provides a [`debug.WriteHeapDump()`](https://pkg.go.dev/runtime/debug#WriteHeapDump) function that produces a heap dump file in a format that is [reasonably well-documented](https://zchee.github.io/golang-wiki/heapdump15-through-heapdump17/). Unfortunately, there seem to be (as of February 2023) no tools that can perform any meaningful processing on those files. That's where heapspurs comes in.
 
